@@ -1,0 +1,737 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Pseudonymous venting API and private admin API for The Secret Place
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: user
+    description: Pseudonymous user and vent-post operations
+  - name: admin
+    description: Authenticated administration operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /me:
+    get:
+      operationId: getCurrentUser
+      tags: [user]
+      summary: Get the signed-in user's private profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The account profile, visible only to its owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      operationId: updateCurrentUser
+      tags: [user]
+      summary: Change the signed-in user's private alias
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCurrentUserBody"
+      responses:
+        "200":
+          description: Updated private profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Alias is already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /feed:
+    get:
+      operationId: getFeed
+      tags: [user]
+      summary: Read public vent posts without author identity
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: Visible posts, with no author identity or account ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /posts:
+    post:
+      operationId: createPost
+      tags: [user]
+      summary: Publish a vent post anonymously
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePostBody"
+      responses:
+        "201":
+          description: Created post, without author identity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicPost"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          description: Posting limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /posts/{postId}:
+    get:
+      operationId: getPost
+      tags: [user]
+      summary: Read one visible vent post without author identity
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Visible post with no author identity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicPost"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /posts/{postId}/reports:
+    post:
+      operationId: reportPost
+      tags: [user]
+      summary: Send a safety report about a vent post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReportBody"
+      responses:
+        "201":
+          description: Report received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: This account has already reported this post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /admin/access:
+    get:
+      operationId: getAdminAccess
+      tags: [admin]
+      summary: Check administrator access
+      responses:
+        "200":
+          description: Administrator access is enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/overview:
+    get:
+      operationId: getAdminOverview
+      tags: [admin]
+      summary: Get platform overview
+      responses:
+        "200":
+          description: Platform counts and recent activity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOverview"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/users:
+    get:
+      operationId: getAdminUsers
+      tags: [admin]
+      summary: List platform users
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/UserStatus"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Matching users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUsersResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/users/{userId}:
+    patch:
+      operationId: updateAdminUser
+      tags: [admin]
+      summary: Change a user's access status
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserStatusUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/posts:
+    get:
+      operationId: getAdminPosts
+      tags: [admin]
+      summary: List vent posts for moderation
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: visibility
+          in: query
+          schema:
+            $ref: "#/components/schemas/PostVisibility"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Matching posts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPostsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/posts/{postId}:
+    patch:
+      operationId: updateAdminPost
+      tags: [admin]
+      summary: Hide or restore a vent post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostVisibilityUpdate"
+      responses:
+        "200":
+          description: Updated post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPost"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/reports:
+    get:
+      operationId: getAdminReports
+      tags: [admin]
+      summary: List safety reports
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ReportStatus"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Matching reports
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReportsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/reports/{reportId}:
+    patch:
+      operationId: updateAdminReport
+      tags: [admin]
+      summary: Resolve or reopen a safety report
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportStatusUpdate"
+      responses:
+        "200":
+          description: Updated report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/audit:
+    get:
+      operationId: getAdminAudit
+      tags: [admin]
+      summary: List recent moderation actions
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+      responses:
+        "200":
+          description: Recent administrative actions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAuditResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    Unauthorized:
+      description: Sign-in required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    Forbidden:
+      description: Account is suspended or administrator access is required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+  schemas:
+    CurrentUser:
+      type: object
+      properties:
+        alias:
+          type: string
+        status:
+          $ref: "#/components/schemas/UserStatus"
+        joinedAt:
+          type: string
+          format: date-time
+      required: [alias, status, joinedAt]
+    UpdateCurrentUserBody:
+      type: object
+      properties:
+        alias:
+          type: string
+          minLength: 3
+          maxLength: 30
+          pattern: "^[A-Za-z0-9_-]+$"
+      required: [alias]
+    PublicPost:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, content, createdAt]
+    FeedResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicPost"
+        nextCursor:
+          type: ["integer", "null"]
+      required: [items, nextCursor]
+    CreatePostBody:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+      required: [content]
+    CreateReportBody:
+      type: object
+      properties:
+        reason:
+          $ref: "#/components/schemas/ReportReason"
+        note:
+          type: ["string", "null"]
+          maxLength: 500
+      required: [reason]
+    ReportCreated:
+      type: object
+      properties:
+        received:
+          type: boolean
+      required: [received]
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    UserStatus:
+      type: string
+      enum: [active, suspended]
+    PostVisibility:
+      type: string
+      enum: [visible, hidden]
+    ReportStatus:
+      type: string
+      enum: [open, resolved]
+    ReportReason:
+      type: string
+      enum: [harassment, personal_information, self_harm_concern, spam, other]
+    AdminAccess:
+      type: object
+      properties:
+        authorized:
+          type: boolean
+      required: [authorized]
+    AdminOverview:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        activeUsers:
+          type: integer
+        suspendedUsers:
+          type: integer
+        totalPosts:
+          type: integer
+        visiblePosts:
+          type: integer
+        hiddenPosts:
+          type: integer
+        openReports:
+          type: integer
+        reportsLast24Hours:
+          type: integer
+        postsLast24Hours:
+          type: integer
+      required:
+        - totalUsers
+        - activeUsers
+        - suspendedUsers
+        - totalPosts
+        - visiblePosts
+        - hiddenPosts
+        - openReports
+        - reportsLast24Hours
+        - postsLast24Hours
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        alias:
+          type: string
+        status:
+          $ref: "#/components/schemas/UserStatus"
+        joinedAt:
+          type: string
+          format: date-time
+        postsCount:
+          type: integer
+        reportsCount:
+          type: integer
+      required: [id, alias, status, joinedAt, postsCount, reportsCount]
+    AdminUsersResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUser"
+        total:
+          type: integer
+      required: [items, total]
+    UserStatusUpdate:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/UserStatus"
+      required: [status]
+    AdminPost:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        authorAlias:
+          type: string
+        content:
+          type: string
+        visibility:
+          $ref: "#/components/schemas/PostVisibility"
+        createdAt:
+          type: string
+          format: date-time
+        reportsCount:
+          type: integer
+      required: [id, userId, authorAlias, content, visibility, createdAt, reportsCount]
+    AdminPostsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminPost"
+        total:
+          type: integer
+      required: [items, total]
+    PostVisibilityUpdate:
+      type: object
+      properties:
+        visibility:
+          $ref: "#/components/schemas/PostVisibility"
+      required: [visibility]
+    ReportedPost:
+      type: object
+      properties:
+        id:
+          type: integer
+        authorAlias:
+          type: string
+        content:
+          type: string
+        visibility:
+          $ref: "#/components/schemas/PostVisibility"
+      required: [id, authorAlias, content, visibility]
+    AdminReport:
+      type: object
+      properties:
+        id:
+          type: integer
+        reason:
+          $ref: "#/components/schemas/ReportReason"
+        note:
+          type: ["string", "null"]
+        status:
+          $ref: "#/components/schemas/ReportStatus"
+        createdAt:
+          type: string
+          format: date-time
+        post:
+          $ref: "#/components/schemas/ReportedPost"
+      required: [id, reason, note, status, createdAt, post]
+    AdminReportsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminReport"
+        total:
+          type: integer
+      required: [items, total]
+    ReportStatusUpdate:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/ReportStatus"
+      required: [status]
+    AdminAuditEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+          enum: [user_suspended, user_reactivated, post_hidden, post_restored, report_resolved, report_reopened]
+        targetType:
+          type: string
+          enum: [user, post, report]
+        targetId:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, action, targetType, targetId, createdAt]
+    AdminAuditResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminAuditEvent"
+      required: [items]

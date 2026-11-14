@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "The Secret Place Admin"
+description = "A privacy-conscious admin console for The Secret Place, a confidential venting platform. Administrators can review platform activity, manage accounts and posts, and handle safety reports."
+version = "1.0.0"
+id = "artifacts/secret-place-admin"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22835
+
+[services.development]
+run = "pnpm --filter @workspace/secret-place-admin run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/secret-place-admin", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/secret-place-admin/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22835"
+BASE_PATH = "/"
