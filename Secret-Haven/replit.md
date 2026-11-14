@@ -51,4 +51,5 @@ The admin console provides a platform overview, user and post management, safety
 
 ## Pointers
 
+- See `USER_API_HANDOFF.md` for API routes, the anonymity boundary, database notes, and Android handoff steps.
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
